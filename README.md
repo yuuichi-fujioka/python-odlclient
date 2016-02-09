@@ -16,13 +16,13 @@ ODL_HOST=192.168.0.100 odlclient node list
 
 Environment Vairable Names are:
 
-| Name     | Description                                                                         |
-|:---------|:------------------------------------------------------------------------------------|
-| ODL_HOST | OpenDaylight Hostname(default: localhost)                                           |
-| ODL_PORT | OpenDaygight API Port(default: 8181)                                                |
-| ODL_USER | OpenDaylight API User Name(default admin)                                           |
-| ODL_PASS | OpenDaylight API Password(default: password)                                        |
-| ODL_URL  | Default Restconf API Path(default: http://${ODL_HOST}:${ODL_PORT}/restconf/config/) |
+| Name     | Description                                                                              |
+|:---------|:-----------------------------------------------------------------------------------------|
+| ODL_HOST | OpenDaylight Hostname(default: localhost)                                                |
+| ODL_PORT | OpenDaygight API Port(default: 8181)                                                     |
+| ODL_USER | OpenDaylight API User Name(default admin)                                                |
+| ODL_PASS | OpenDaylight API Password(default: password)                                             |
+| ODL_URL  | Default Restconf API Path(default: http://${ODL_HOST}:${ODL_PORT}/restconf/operational/) |
 
 ### List Nodes
 
@@ -40,4 +40,10 @@ odlclient table list openflow:1111111111
 
 ```
 odlclient flow list openflow:1111111111
+```
+
+### List Node Connectors
+
+```
+odlclient connector list openflow:1111111111
 ```
