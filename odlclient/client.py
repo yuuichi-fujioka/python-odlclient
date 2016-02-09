@@ -1,10 +1,13 @@
+from __future__ import print_function
+
 import os
 import json
 
 import requests
+import six
 
 
-_BASE_ODL_URL = 'http://%(host)s:%(port)s/restconf/config/'  # noqa
+_BASE_ODL_URL = 'http://%(host)s:%(port)s/restconf/operational/'
 
 
 class ODL(object):
@@ -16,6 +19,9 @@ class ODL(object):
 
         self.nodes = NodeManager(self)
 
+        self.debug = False
+        self.verbose = False
+
     @classmethod
     def get_client_with_env(clazz):
         return clazz(
@@ -26,16 +32,49 @@ class ODL(object):
             os.environ.get('ODL_USER', 'admin'),
             os.environ.get('ODL_PASS', 'admin'))
 
+    def _log_http(self, url, headers, resp):
+
+        if not self.debug:
+            return
+
+        msg = ('DEBUG(request): curl -i %(headers)s -u "%(user)s:%(password)s"'
+               ' -X GET "%(url)s"')
+        formatted_headers = ' '.join(
+            ['-H "' + ': '.join([k, v]) + '"'
+             for k, v in six.iteritems(headers)])
+        print(msg % {
+            'headers': formatted_headers,
+            'user': self.user,
+            'password': self.password,
+            'url': url,
+        })
+
+        print('DEBUG(response):')
+        print("HTTP/1.1 %(status_code)s %(status_msg)s" % {
+            'status_code': resp.status_code, 'status_msg': resp.reason})
+        for k, v in six.iteritems(resp.headers):
+            print(k + ': ' + v)
+        print()
+        if self.verbose:
+            print(resp.content)
+        else:
+            print(('(HTTP Response Body is truncated(%d Chars).'
+                   ' If you want to show it,'
+                   'you may use --verbose option.)') % len(resp.content))
+
     def get(self, resource):
         headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         }
-
+        url = '/'.join([self.url, resource])
         resp = requests.get(
-            '/'.join([self.url, resource]),
+            url,
             auth=(self.user, self.password),
             headers=headers)
+
+        self._log_http(url, headers, resp)
+
         # TODO Error
         return resp
 
@@ -44,13 +83,14 @@ class ResourceManager(object):
     def __init__(self, odl):
         self.odl = odl
 
-    def list_all(self):
-        resp = self.odl.get(self.resource_type)
+    def list_all(self, *args, **kwargs):
+        resp = self.odl.get(self.resource_type(*args, **kwargs))
         data_text = resp.text
         return self._as_objects(json.loads(data_text))
 
-    def get(self, id):
-        resp = self.odl.get('/'.join([self.resource_type, self.resource, id]))
+    def get(self, id, *args, **kwargs):
+        resp = self.odl.get('/'.join([self.resource_type(args, **kwargs),
+                            self.resource, id]))
         data_text = resp.text
         return self._as_object(json.loads(data_text))
 
@@ -63,7 +103,9 @@ class ResourceManager(object):
 
 class NodeManager(ResourceManager):
 
-    resource_type = 'opendaylight-inventory:nodes'
+    def resource_type(self, *args, **kwargs):
+        return 'opendaylight-inventory:nodes'
+
     resource = 'node'
 
     def _as_objects(self, data):
@@ -81,13 +123,43 @@ class Node(object):
         obj.id = d['id']
         obj.tables = [
             Table.from_dict(t) for t in d['flow-node-inventory:table']]
+        obj.connectors = [Connector.from_dict(c) for c in d["node-connector"]]
+        obj.serial_number = d["flow-node-inventory:serial-number"]
+        obj.switch_features = d["flow-node-inventory:switch-features"]
+        obj.hardware = d["flow-node-inventory:hardware"]
+        obj.software = d["flow-node-inventory:software"]
+        obj.description = d["flow-node-inventory:description"]
+        obj.meter_features = d["opendaylight-meter-statistics:meter-features"]
+        obj.ip_address = d["flow-node-inventory:ip-address"]
+        obj.manufacturer = d["flow-node-inventory:manufacturer"]
         return obj
 
     def __repr__(self):
-        return 'Node[%(id)s, %(tables)s]' % {
-            'id': self.id,
-            'tables': self.tables
+        return 'Node[%(id)s]' % {
+            'id': self.id
         }
+
+
+class Connector(object):
+    @classmethod
+    def from_dict(clazz, d):
+        obj = clazz()
+        obj.id = d['id']
+        obj.port_number = d["flow-node-inventory:port-number"]
+        obj.current_speed = d["flow-node-inventory:current-speed"]
+        obj.flow_capable_node_connector_statistics = d[
+            "opendaylight-port-statistics:flow-capable-node-connector-statistics"]  # noqa
+        obj.advertised_features = d["flow-node-inventory:advertised-features"]
+        obj.configuration = d["flow-node-inventory:configuration"]
+        obj.name = d["flow-node-inventory:name"]
+        obj.hardware_address = d["flow-node-inventory:hardware-address"]
+        obj.maximum_speed = d["flow-node-inventory:maximum-speed"]
+        obj.state = d["flow-node-inventory:state"]
+        obj.supported = d["flow-node-inventory:supported"]
+        obj.current_feature = d["flow-node-inventory:current-feature"]
+        obj.peer_features = d["flow-node-inventory:peer-features"]
+
+        return obj
 
 
 class Table(object):
@@ -95,7 +167,12 @@ class Table(object):
     def from_dict(clazz, d):
         obj = clazz()
         obj.id = d['id']
-        obj.flows = [Flow.from_dict(f) for f in d.pop('flow')]
+        obj.flows = [Flow.from_dict(f) for f in d.get('flow', [])]
+        obj.flow_hash_id_map = d.get("flow-hash-id-map")
+        obj.aggregate_flow_statistics = d.get(
+            "opendaylight-flow-statistics:aggregate-flow-statistics")
+        obj.flow_table_statistics = d.get(
+            "opendaylight-flow-table-statistics:flow-table-statistics")
         return obj
 
     def __repr__(self):
