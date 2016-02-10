@@ -7,7 +7,7 @@ import requests
 import six
 
 
-_BASE_ODL_URL = 'http://%(host)s:%(port)s/restconf/operational/'
+_BASE_ODL_URL = 'http://%(host)s:%(port)s/restconf/'
 
 
 class ODL(object):
@@ -18,6 +18,7 @@ class ODL(object):
         self.password = password
 
         self.nodes = NodeManager(self)
+        self.flows = FlowManager(self)
 
         self.debug = False
         self.verbose = False
@@ -32,22 +33,30 @@ class ODL(object):
             os.environ.get('ODL_USER', 'admin'),
             os.environ.get('ODL_PASS', 'admin'))
 
-    def _log_http(self, url, headers, resp):
+    def _log_http(self, url, headers, resp, method='GET', body=None):
 
         if not self.debug:
             return
 
         msg = ('DEBUG(request): curl -i %(headers)s -u "%(user)s:%(password)s"'
-               ' -X GET "%(url)s"')
+               ' -X %(method)s "%(url)s"')
+
         formatted_headers = ' '.join(
             ['-H "' + ': '.join([k, v]) + '"'
              for k, v in six.iteritems(headers)])
-        print(msg % {
+        msg_data = {
             'headers': formatted_headers,
             'user': self.user,
             'password': self.password,
             'url': url,
-        })
+            'method': method,
+        }
+
+        if body is not None:
+            msg += " -d '%(body)s'"
+            msg_data['body'] = json.dumps(body)
+
+        print(msg % msg_data)
 
         print('DEBUG(response):')
         print("HTTP/1.1 %(status_code)s %(status_msg)s" % {
@@ -67,13 +76,30 @@ class ODL(object):
             'Content-Type': 'application/json',
             'Accept': 'application/json',
         }
-        url = '/'.join([self.url, resource])
+        url = ''.join([self.url, 'operational/', resource])
         resp = requests.get(
             url,
             auth=(self.user, self.password),
             headers=headers)
 
         self._log_http(url, headers, resp)
+
+        # TODO Error
+        return resp
+
+    def post(self, resource, body):
+        headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }
+        url = ''.join([self.url, 'config/', resource])
+        resp = requests.post(
+            url,
+            auth=(self.user, self.password),
+            headers=headers,
+            data=body)
+
+        self._log_http(url, headers, resp, method='POST', body=body)
 
         # TODO Error
         return resp
@@ -88,11 +114,20 @@ class ResourceManager(object):
         data_text = resp.text
         return self._as_objects(json.loads(data_text))
 
+    def _gen_url(self, id, *args, **kwargs):
+        return '/'.join([
+            self.resource_type(*args, **kwargs),
+            self.resource,
+            id])
+
     def get(self, id, *args, **kwargs):
-        resp = self.odl.get('/'.join([self.resource_type(args, **kwargs),
-                            self.resource, id]))
+        resp = self.odl.get(self._gen_url(id, *args, **kwargs))
         data_text = resp.text
         return self._as_object(json.loads(data_text))
+
+    def create(self, id, body, *args, **kwargs):
+        resp = self.odl.post(self._gen_url(id, *args, **kwargs), body)
+        return json.loads(resp.text)
 
     def _as_objects(self, data):
         return data
@@ -115,6 +150,15 @@ class NodeManager(ResourceManager):
         return Node.from_dict(data['node'][0])
 
 
+class FlowManager(ResourceManager):
+
+    def resource_type(self, node_id, table_id, *args, **kwargs):
+        return ('opendaylight-inventory:nodes/node/%s/'
+                'flow-node-inventory:table/%s') % (node_id, table_id)
+
+    resource = 'flow'
+
+
 class Node(object):
 
     @classmethod
@@ -124,14 +168,15 @@ class Node(object):
         obj.tables = [
             Table.from_dict(t) for t in d['flow-node-inventory:table']]
         obj.connectors = [Connector.from_dict(c) for c in d["node-connector"]]
-        obj.serial_number = d["flow-node-inventory:serial-number"]
-        obj.switch_features = d["flow-node-inventory:switch-features"]
-        obj.hardware = d["flow-node-inventory:hardware"]
-        obj.software = d["flow-node-inventory:software"]
-        obj.description = d["flow-node-inventory:description"]
-        obj.meter_features = d["opendaylight-meter-statistics:meter-features"]
-        obj.ip_address = d["flow-node-inventory:ip-address"]
-        obj.manufacturer = d["flow-node-inventory:manufacturer"]
+        obj.serial_number = d.get("flow-node-inventory:serial-number")
+        obj.switch_features = d.get("flow-node-inventory:switch-features")
+        obj.hardware = d.get("flow-node-inventory:hardware")
+        obj.software = d.get("flow-node-inventory:software")
+        obj.description = d.get("flow-node-inventory:description")
+        obj.meter_features = d.get(
+            "opendaylight-meter-statistics:meter-features")
+        obj.ip_address = d.get("flow-node-inventory:ip-address")
+        obj.manufacturer = d.get("flow-node-inventory:manufacturer")
         return obj
 
     def __repr__(self):
@@ -145,19 +190,20 @@ class Connector(object):
     def from_dict(clazz, d):
         obj = clazz()
         obj.id = d['id']
-        obj.port_number = d["flow-node-inventory:port-number"]
-        obj.current_speed = d["flow-node-inventory:current-speed"]
-        obj.flow_capable_node_connector_statistics = d[
-            "opendaylight-port-statistics:flow-capable-node-connector-statistics"]  # noqa
-        obj.advertised_features = d["flow-node-inventory:advertised-features"]
-        obj.configuration = d["flow-node-inventory:configuration"]
-        obj.name = d["flow-node-inventory:name"]
-        obj.hardware_address = d["flow-node-inventory:hardware-address"]
-        obj.maximum_speed = d["flow-node-inventory:maximum-speed"]
-        obj.state = d["flow-node-inventory:state"]
-        obj.supported = d["flow-node-inventory:supported"]
-        obj.current_feature = d["flow-node-inventory:current-feature"]
-        obj.peer_features = d["flow-node-inventory:peer-features"]
+        obj.port_number = d.get("flow-node-inventory:port-number")
+        obj.current_speed = d.get("flow-node-inventory:current-speed")
+        obj.flow_capable_node_connector_statistics = d.get(
+            "opendaylight-port-statistics:flow-capable-node-connector-statistics")  # noqa
+        obj.advertised_features = d.get(
+            "flow-node-inventory:advertised-features")
+        obj.configuration = d.get("flow-node-inventory:configuration")
+        obj.name = d.get("flow-node-inventory:name")
+        obj.hardware_address = d.get("flow-node-inventory:hardware-address")
+        obj.maximum_speed = d.get("flow-node-inventory:maximum-speed")
+        obj.state = d.get("flow-node-inventory:state")
+        obj.supported = d.get("flow-node-inventory:supported")
+        obj.current_feature = d.get("flow-node-inventory:current-feature")
+        obj.peer_features = d.get("flow-node-inventory:peer-features")
 
         return obj
 
