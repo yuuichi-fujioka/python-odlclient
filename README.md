@@ -2,8 +2,16 @@
 
 ## install
 
+pypi package:
+
 ```
-pip install git+https://github.com/yuuichi-fujioka/python-odlclient
+pip install python-odlclient
+```
+
+source:
+
+```
+pip install git+https://github.com/yuuichi-fujioka/python-odlclient.git
 ```
 
 ## Run Command
