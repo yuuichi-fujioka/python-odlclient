@@ -11,7 +11,7 @@ pip install git+https://github.com/yuuichi-fujioka/python-odlclient
 OpenDaylight Host, Port, User and Password are passed via Environment Variable. e.g.:
 
 ```
-ODL_HOST=192.168.0.100 odlclient node list
+ODL_HOST=192.168.0.100 odl node list
 ```
 
 Environment Vairable Names are:
@@ -27,23 +27,23 @@ Environment Vairable Names are:
 ### List Nodes
 
 ```
-odlclient node list
+odl node list
 ```
 
 ### List Tables
 
 ```
-odlclient table list openflow:1111111111
+odl table list openflow:1111111111
 ```
 
 ### List Flows
 
 ```
-odlclient flow list openflow:1111111111
+odl flow list openflow:1111111111
 ```
 
 ### List Node Connectors
 
 ```
-odlclient connector list openflow:1111111111
+odl connector list openflow:1111111111
 ```
