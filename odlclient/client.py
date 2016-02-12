@@ -5,6 +5,7 @@ import json
 
 import requests
 import six
+import xmltodict
 
 
 _BASE_ODL_URL = 'http://%(host)s:%(port)s/restconf/'
@@ -54,7 +55,10 @@ class ODL(object):
 
         if body is not None:
             msg += " -d '%(body)s'"
-            msg_data['body'] = json.dumps(body)
+            if isinstance(body, (list, dict)):
+                msg_data['body'] = json.dumps(body)
+            else:
+                msg_data['body'] = body
 
         print(msg % msg_data)
 
@@ -87,19 +91,20 @@ class ODL(object):
         # TODO Error
         return resp
 
-    def post(self, resource, body):
+    def put(self, resource, body):
         headers = {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/xml',
             'Accept': 'application/json',
         }
         url = ''.join([self.url, 'config/', resource])
-        resp = requests.post(
+        data = body
+        resp = requests.put(
             url,
             auth=(self.user, self.password),
             headers=headers,
-            data=body)
+            data=data)
 
-        self._log_http(url, headers, resp, method='POST', body=body)
+        self._log_http(url, headers, resp, method='PUT', body=data)
 
         # TODO Error
         return resp
@@ -126,8 +131,8 @@ class ResourceManager(object):
         return self._as_object(json.loads(data_text))
 
     def create(self, id, body, *args, **kwargs):
-        resp = self.odl.post(self._gen_url(id, *args, **kwargs), body)
-        return json.loads(resp.text)
+        resp = self.odl.put(self._gen_url(id, *args, **kwargs), body)
+        return resp.status_code / 100 == 2
 
     def _as_objects(self, data):
         return data
@@ -157,6 +162,27 @@ class FlowManager(ResourceManager):
                 'flow-node-inventory:table/%s') % (node_id, table_id)
 
     resource = 'flow'
+
+    def create(self, node_id, table_id, flow_id,
+               priority=None, match=None, instructions=None):
+        body = {'id': flow_id, 'table_id': table_id}
+        if priority is not None:
+            body['priority'] = priority
+        if match:
+            body['match'] = match
+        if instructions:
+            body['instructions'] = instructions
+        # TODO fix way to gen xml
+        data = (
+            '<?xml version="1.0" encoding="utf-8"?>'
+            '<flow xmlns="urn:opendaylight:flow:inventory">'
+            '%s'
+            '</flow>'
+        ) % (
+            xmltodict.unparse(body, full_document=False)
+        )
+        return super(FlowManager, self).create(
+            flow_id, data, node_id, table_id)
 
 
 class Node(object):

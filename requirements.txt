@@ -2,3 +2,4 @@ six
 requests
 click
 PrettyTable
+xmltodict

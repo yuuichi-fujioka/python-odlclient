@@ -164,6 +164,70 @@ def list(node_id):
                    'instructions': instruction_formatter})
 
 
+@flow.command(help='Creates a Flow')
+@click.argument('node-id')
+@click.argument('table-id')
+@click.argument('flow-id')
+@click.option('--priority', type=int)
+@click.option('--in-port', help='Input Port Number(Match)')
+@click.option('--dl-src',
+    help='Ethernet Source Address(Match). xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
+@click.option('--dl-dst',
+    help='Ethernet Destination Address(Match). e.g. xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
+@click.option('--output', help='Output Port Number(Action)')
+def create(node_id, table_id, flow_id, priority, in_port, dl_src, dl_dst,
+           output):
+    odl = _get_odl_client()
+
+    # Match Ruel
+    match = {}
+    if in_port:
+        match['in-port'] = in_port
+    if dl_src or dl_dst:
+        dl = {}
+        if dl_src:
+            if '/' in dl_src:
+                addr, mask = dl_src.split('/')
+            else:
+                addr = dl_src
+                mask = 'ff:ff:ff:ff:ff:ff'
+            dl['ethernet-source'] = {
+                'address': addr,
+                'mask': mask,
+            }
+        if dl_dst:
+            if '/' in dl_dst:
+                addr, mask = dl_dst.split('/')
+            else:
+                addr = dl_src
+                mask = 'ff:ff:ff:ff:ff:ff'
+            dl['ethernet-destination'] = {
+                'address': addr,
+                'mask': mask,
+            }
+        match['ethernet-match'] = dl
+
+    # Instructions
+    instructions = None
+    actions = []
+    if output:
+        actions.append(
+            {'output-action': {'output-node-connector': output}, 'order': 0})
+
+    if actions:
+        instructions = {
+            'instruction': [
+                {'apply-actions': {'action': actions}, 'order': 0}]
+        }
+
+    # Create a Flow
+    data = odl.flows.create(
+        node_id, table_id, flow_id, priority, match=match,
+        instructions=instructions
+    )
+    print data
+
+
 def main():
     cmd()
 
