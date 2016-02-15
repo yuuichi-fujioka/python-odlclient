@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/yuuichi-fujioka/python-odlclient.svg?branch=master
+    :target: https://travis-ci.org/yuuichi-fujioka/python-odlclient
+
 OpenDaylight Client for Python
 ##############################
 
