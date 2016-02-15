@@ -164,6 +164,57 @@ def list(node_id):
                    'instructions': instruction_formatter})
 
 
+class InstructionKeys(object):
+    def __init__(self):
+        self.actions = {}
+
+    def __call__(self, key):
+        def deco(func):
+            self.actions[key] = func
+            return func
+        return deco
+
+    def gen(self, key, value, order):
+        return self.actions[key](value, order)
+
+
+instruction_keys = InstructionKeys()
+
+
+@instruction_keys('output')
+def _output(value, order):
+    return {'output-action': {
+        'output-node-connector': int(value)}, 'order': order}
+
+
+def _parse_instructions(instructions):
+    if not instructions:
+        return None
+
+    actions = []
+    order = 0
+    for instruction in instructions.split(','):
+        key, v = instruction.strip().split(':', 1)
+        actions.append(instruction_keys.gen(key, v, order))
+        order += 1
+    return {
+        'instruction': [
+            {'apply-actions': {'action': actions}, 'order': 0}]
+    }
+
+
+def _parse_mac(mac_addr):
+    if '/' in mac_addr:
+        addr, mask = mac_addr.split('/')
+    else:
+        addr = mac_addr
+        mask = 'ff:ff:ff:ff:ff:ff'
+    return {
+        'address': addr,
+        'mask': mask,
+    }
+
+
 @flow.command(help='Creates a Flow')
 @click.argument('node-id')
 @click.argument('table-id')
@@ -171,12 +222,13 @@ def list(node_id):
 @click.option('--priority', type=int)
 @click.option('--in-port', help='Input Port Number(Match)')
 @click.option('--dl-src',
-    help='Ethernet Source Address(Match). xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
+              help='Ethernet Source Address(Match). xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
 @click.option('--dl-dst',
-    help='Ethernet Destination Address(Match). e.g. xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
-@click.option('--output', help='Output Port Number(Action)')
+              help='Ethernet Destination Address(Match). e.g. xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
+@click.option('--instructions',
+              help='Instructions. e.g. output:1,outpu:2')
 def create(node_id, table_id, flow_id, priority, in_port, dl_src, dl_dst,
-           output):
+           instructions):
     odl = _get_odl_client()
 
     # Match Ruel
@@ -186,44 +238,18 @@ def create(node_id, table_id, flow_id, priority, in_port, dl_src, dl_dst,
     if dl_src or dl_dst:
         dl = {}
         if dl_src:
-            if '/' in dl_src:
-                addr, mask = dl_src.split('/')
-            else:
-                addr = dl_src
-                mask = 'ff:ff:ff:ff:ff:ff'
-            dl['ethernet-source'] = {
-                'address': addr,
-                'mask': mask,
-            }
+            dl['ethernet-source'] = _parse_mac(dl_src)
         if dl_dst:
-            if '/' in dl_dst:
-                addr, mask = dl_dst.split('/')
-            else:
-                addr = dl_src
-                mask = 'ff:ff:ff:ff:ff:ff'
-            dl['ethernet-destination'] = {
-                'address': addr,
-                'mask': mask,
-            }
+            dl['ethernet-destination'] = _parse_mac(dl_dst)
         match['ethernet-match'] = dl
 
     # Instructions
-    instructions = None
-    actions = []
-    if output:
-        actions.append(
-            {'output-action': {'output-node-connector': output}, 'order': 0})
-
-    if actions:
-        instructions = {
-            'instruction': [
-                {'apply-actions': {'action': actions}, 'order': 0}]
-        }
+    parsed_instructions = _parse_instructions(instructions)
 
     # Create a Flow
     data = odl.flows.create(
         node_id, table_id, flow_id, priority, match=match,
-        instructions=instructions
+        instructions=parsed_instructions
     )
     print data
 

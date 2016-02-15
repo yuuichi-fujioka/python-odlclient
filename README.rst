@@ -63,3 +63,9 @@ ODL_URL  Default Restconf API Path(default: http://${ODL_HOST}:${ODL_PORT}/restc
 .. code::
 
    odl connector list openflow:1111111111
+
+* Add Flow
+
+.. code::
+
+   odl flow create openflow:201106209703495 100 29 --dl-src 00:00:00:00:00:00/01:00:00:00:00:00 --instructions output:1,output:2
