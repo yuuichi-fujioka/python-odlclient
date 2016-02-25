@@ -72,3 +72,9 @@ ODL_URL  Default Restconf API Path(default: http://${ODL_HOST}:${ODL_PORT}/restc
 .. code::
 
    odl flow create openflow:201106209703495 100 29 --dl-src 00:00:00:00:00:00/01:00:00:00:00:00 --instructions output:1,output:2
+
+If you want to know HTTP Request/Response details, you may set --debug and --verbose options. i.e.
+
+.. code::
+
+   odl --deubg --verbose node list
