@@ -37,7 +37,7 @@ Environment Vairable Names are:
 Name     Description
 ======== ========================================================================================
 ODL_HOST OpenDaylight Hostname(default: localhost)
-ODL_PORT OpenDaygight API Port(default: 8181)
+ODL_PORT OpenDaylight API Port(default: 8181)
 ODL_USER OpenDaylight API User Name(default admin)
 ODL_PASS OpenDaylight API Password(default: password)
 ODL_URL  Default Restconf API Path(default: http://${ODL_HOST}:${ODL_PORT}/restconf/operational/)
