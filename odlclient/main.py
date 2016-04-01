@@ -225,10 +225,11 @@ def _parse_mac(mac_addr):
               help='Ethernet Source Address(Match). xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
 @click.option('--dl-dst',
               help='Ethernet Destination Address(Match). e.g. xx:xx:xx:xx:xx:xx/xx:xx:xx:xx:xx:xx or xx:xx:xx:xx:xx:xx')  # noqa
+@click.option('--tun-id', help='tunnel ID')
 @click.option('--instructions',
               help='Instructions. e.g. output:1,outpu:2')
 def create(node_id, table_id, flow_id, priority, in_port, dl_src, dl_dst,
-           instructions):
+           tun_id, instructions):
     odl = _get_odl_client()
 
     # Match Ruel
@@ -242,6 +243,8 @@ def create(node_id, table_id, flow_id, priority, in_port, dl_src, dl_dst,
         if dl_dst:
             dl['ethernet-destination'] = _parse_mac(dl_dst)
         match['ethernet-match'] = dl
+    if tun_id:
+        match['tunnel'] = {'tunnel-id': tun_id}
 
     # Instructions
     parsed_instructions = _parse_instructions(instructions)
